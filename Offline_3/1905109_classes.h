@@ -75,7 +75,7 @@ struct Point {
         return (x*p.x + y*p.y + z*p.z);
     }
     Point operator -() {
-        return Point(-x,-y,-z);
+        return Point(-x, -y, -z);
     }
 
     double length() {
@@ -116,19 +116,19 @@ struct Point {
         this->n = n;
     }
 
-    friend ostream& operator<<(ostream &out, Point p) {
+    friend ostream& operator <<(ostream &out, Point p) {
         out << "(" << p.x << "," << p.y << "," << p.z << ")" << " : " << p.n;
         return out;
     }
 
-    friend istream& operator>>(istream &in, Point &p) {
+    friend istream& operator >>(istream &in, Point &p) {
         in >> p.x >> p.y >> p.z;
         return in;
     }
 
-    friend ofstream& operator<<(ofstream &output, Point &p) {
-        output << fixed << setprecision(7) << p.x << " " << p.y <<" " << p.z;
-        return output;
+    friend ofstream& operator <<(ofstream &out, Point &p) {
+        out << fixed << setprecision(7) << p.x << " " << p.y << " " << p.z;
+        return out;
     }
 
 };
@@ -152,17 +152,16 @@ struct PointLight{
     Color color;
 
     void draw() {
-        glPointSize(5);
-        glBegin(GL_POINTS);
-        glColor3f(color.r, color.g, color.b);
-        glVertex3f(pos.x, pos.y, pos.z);
-        glEnd();
+        glPointSize(3);
+        glBegin(GL_POINTS); {
+            glColor3f(color.r, color.g, color.b);
+            glVertex3f(pos.x, pos.y, pos.z);
+        } glEnd();
     }
 
-    // input stream
-    friend istream& operator>>(istream &in, PointLight &l) {
-        in >> l.pos.x >> l.pos.y >> l.pos.z;
-        in >> l.color.r >> l.color.g >> l.color.b;
+    friend istream& operator >>(istream &in, PointLight &light) {
+        in >> light.pos.x >> light.pos.y >> light.pos.z;
+        in >> light.color.r >> light.color.g >> light.color.b;
         return in;
     }
 
@@ -177,52 +176,50 @@ struct SpotLight{
         Color color = pointLight.color;
         Point pos = pointLight.pos;
 
-        glPointSize(15);
-        glBegin(GL_POINTS);
-        glColor3f(color.r, color.g, color.b);
-        glVertex3f(pos.x, pos.y, pos.z);
-        glEnd();
+        glPointSize(12);
+        glBegin(GL_POINTS); {
+            glColor3f(color.r, color.g, color.b);
+            glVertex3f(pos.x, pos.y, pos.z);
+        } glEnd();
     }
 
-    friend istream& operator>>(istream &in, SpotLight &l) {
-        in >> l.pointLight.pos;
-        in >> l.pointLight.color.r >> l.pointLight.color.g >> l.pointLight.color.b;
-        in >> l.dir;
-        in >> l.cutoffAngle;
+    friend istream& operator >>(istream &in, SpotLight &light) {
+        in >> light.pointLight.pos;
+        in >> light.pointLight.color.r >> light.pointLight.color.g >> light.pointLight.color.b;
+        in >> light.dir;
+        in >> light.cutoffAngle;
         return in;
     }
 
 };
 
 
-struct Ray{
-    Point origin, dir;
+struct Ray {
+    Point ori, dir;
     
-    Ray(Point origin, Point dir){
-        this->origin = origin;
+    Ray(Point ori, Point dir) {
+        this->ori = ori;
         dir.normalize();
         this->dir = dir;
     }
 
-    // stream
-    friend ostream& operator<<(ostream &out, Ray r)
-    {
-        out << "Origin : " << r.origin << ", Direction : " << r.dir;
+    friend ostream& operator<<(ostream &out, Ray r) {
+        out << "Origin : " << r.ori << ", Direction : " << r.dir;
         return out;
     }
 };
 
 class Object;
 
-extern vector <PointLight*> lights;
-extern vector <SpotLight*> spotlights;
+extern vector <PointLight*> pointLights;
+extern vector <SpotLight*> spotLights;
 extern vector <Object*> objects;
-extern int recursionLevel;
+extern int recLevel;
 
 class Object {
 public:
-    Point reference_point;
-    double height, width, length;
+    Point refPoint;
+    double height = 0, width = 0, length = 0;
     Color color;
     vector <double> coefficients; // ambient, diffuse, specular, reflection coefficients
     int shine;
@@ -256,27 +253,21 @@ public:
         if(t < 0) return -1;
         if(level == 0) return t;
 
-        // find intersection point and it's color
-        Point intersectionPoint = ray.origin + ray.dir*t;
+        Point intersectionPoint = ray.ori + ray.dir*t;
         Color colorAtIntersection = getColorAt(intersectionPoint);
 
-        // update color with ambience (thing will become dimmer)
         color.r = colorAtIntersection.r * coefficients[0];
         color.g = colorAtIntersection.g * coefficients[0];
         color.b = colorAtIntersection.b * coefficients[0];
 
-        // cout<< " Lights size " << lights.size() << endl;
 
-        for(int i = 0; i < lights.size(); i++) {
+        for(int i = 0; i < pointLights.size(); i++) {
 
-            Point lightPosition = lights[i]->pos;
+            Point lightPosition = pointLights[i]->pos;
             Point lightDirection = intersectionPoint - lightPosition;
             lightDirection.normalize();
             
-            // cast incident ray, from light position to intersection point
             Ray lightRay = Ray(lightPosition, lightDirection);
-
-            // calculate normal at intersectionPoint
             Ray normal = getNormal(intersectionPoint, lightRay);
 
             double t2 = (intersectionPoint - lightPosition).length();
@@ -293,43 +284,36 @@ public:
             }
 
             if(!obscured) {
-                
-                // lambert value
                 double val = max(0.0, -lightRay.dir*normal.dir);
                 
-                // find reflected ray
                 Ray reflection = Ray(intersectionPoint, lightRay.dir - normal.dir*2*(lightRay.dir*normal.dir));
                 double phong = max(0.0,-ray.dir*reflection.dir);
                 
-                // update diffuse and specular components
-                // lights[i]->color works as the source intensity, Is here
+                color.r += pointLights[i]->color.r * coefficients[1] * val * colorAtIntersection.r;
+                color.r += pointLights[i]->color.r * coefficients[2] * pow(phong,shine) * colorAtIntersection.r;
 
-                color.r += lights[i]->color.r * coefficients[1] * val * colorAtIntersection.r;
-                color.r += lights[i]->color.r * coefficients[2] * pow(phong,shine) * colorAtIntersection.r;
+                color.g += pointLights[i]->color.g * coefficients[1] * val * colorAtIntersection.g;
+                color.g += pointLights[i]->color.g * coefficients[2] * pow(phong,shine) * colorAtIntersection.g;
 
-                color.g += lights[i]->color.g * coefficients[1] * val * colorAtIntersection.g;
-                color.g += lights[i]->color.g * coefficients[2] * pow(phong,shine) * colorAtIntersection.g;
-
-                color.b += lights[i]->color.b * coefficients[1] * val * colorAtIntersection.b;
-                color.b += lights[i]->color.b * coefficients[2] * pow(phong,shine) * colorAtIntersection.b;
+                color.b += pointLights[i]->color.b * coefficients[1] * val * colorAtIntersection.b;
+                color.b += pointLights[i]->color.b * coefficients[2] * pow(phong,shine) * colorAtIntersection.b;
 
             }
         }
 
-        for(int i = 0; i < spotlights.size(); i++) {
+        for(int i = 0; i < spotLights.size(); i++) {
 
-            Point lightPosition = spotlights[i]->pointLight.pos;
+            Point lightPosition = spotLights[i]->pointLight.pos;
             Point lightDirection = intersectionPoint - lightPosition;
             lightDirection.normalize();
 
-            double dot = lightDirection*spotlights[i]->dir;
-            double angle = acos(dot/(lightDirection.length()*spotlights[i]->dir.length())) * (180.0/pi);
+            double dot = lightDirection*spotLights[i]->dir;
+            double angle = acos(dot/(lightDirection.length()*spotLights[i]->dir.length())) * (180.0/pi);
 
-            if(fabs(angle)<spotlights[i]->cutoffAngle) {
+            if(fabs(angle)<spotLights[i]->cutoffAngle) {
 
                 Ray lightRay = Ray(lightPosition, lightDirection);
                 Ray normal = getNormal(intersectionPoint,lightRay);
-                
                 Ray reflection = Ray(intersectionPoint, lightRay.dir - normal.dir*2*(lightRay.dir*normal.dir));
                 
                 double t2 = (intersectionPoint - lightPosition).length();
@@ -346,55 +330,44 @@ public:
                 }
                 
                 if(!obscured) {
-                    
                     double phong = max(0.0,-(ray.dir*reflection.dir));
                     double val = max(0.0, -(lightRay.dir*normal.dir));
                     
-                    color.r += spotlights[i]->pointLight.color.r * coefficients[1] * val * colorAtIntersection.r;
-                    color.r += spotlights[i]->pointLight.color.r * coefficients[2] * pow(phong,shine) * colorAtIntersection.r;
+                    color.r += spotLights[i]->pointLight.color.r * coefficients[1] * val * colorAtIntersection.r;
+                    color.r += spotLights[i]->pointLight.color.r * coefficients[2] * pow(phong,shine) * colorAtIntersection.r;
                     
-                    color.g += spotlights[i]->pointLight.color.g * coefficients[1] * val * colorAtIntersection.g;
-                    color.g += spotlights[i]->pointLight.color.g * coefficients[2] * pow(phong,shine) * colorAtIntersection.g;
+                    color.g += spotLights[i]->pointLight.color.g * coefficients[1] * val * colorAtIntersection.g;
+                    color.g += spotLights[i]->pointLight.color.g * coefficients[2] * pow(phong,shine) * colorAtIntersection.g;
                     
-                    color.b += spotlights[i]->pointLight.color.b * coefficients[1] * val * colorAtIntersection.b;
-                    color.b += spotlights[i]->pointLight.color.b * coefficients[2] * pow(phong,shine) * colorAtIntersection.b;
+                    color.b += spotLights[i]->pointLight.color.b * coefficients[1] * val * colorAtIntersection.b;
+                    color.b += spotLights[i]->pointLight.color.b * coefficients[2] * pow(phong,shine) * colorAtIntersection.b;
                     
                 }
             }
         }
 
-
-        if(level < recursionLevel) {
+        if(level < recLevel) {
             Ray normal = getNormal(intersectionPoint,ray);
-
             Ray reflectionRay = Ray(intersectionPoint, ray.dir - normal.dir*2*(ray.dir*normal.dir));
-
-            reflectionRay.origin = reflectionRay.origin + reflectionRay.dir*1e-5;
+            reflectionRay.ori = reflectionRay.ori + reflectionRay.dir*1e-5;
             
-
-
-            int nearestObjectIndex = -1;
+            int nearIndex = -1;
             double t = -1, tMin = 1e9;
 
-            for(int k=0;k<(int)objects.size();k++) {
-                t = objects[k]->intersect(reflectionRay,color, 0);
+            for(int k = 0; k < (int)objects.size(); k++) {
+                t = objects[k]->intersect(reflectionRay, color, 0);
                 if(t > 0 && t < tMin) {
-                    tMin = t, nearestObjectIndex = k;
+                    tMin = t, nearIndex = k;
                 }
             }
 
-            if(nearestObjectIndex != -1) {
-                Color colorTemp(0,0,0);
-                double t = objects[nearestObjectIndex]->intersect(reflectionRay,colorTemp, level+1);
-
-                
+            if(nearIndex != -1) {
+                Color colorTemp(0, 0, 0);
+                double t = objects[nearIndex]->intersect(reflectionRay, colorTemp, level+1);             
                 color.r += colorTemp.r * coefficients[3];
                 color.g += colorTemp.g * coefficients[3];
                 color.b += colorTemp.b * coefficients[3];
-
             }
-            
-            
         }
 
         return t;
@@ -407,19 +380,18 @@ public:
 };
 
 
-struct General : public Object{
+struct Quadratic : public Object{
     double A,B,C,D,E,F,G,H,I,J;
 
-    General(){
+    Quadratic() {
 
     }
 
-    virtual void draw(){
+    virtual void draw() {
         return;
     }
 
-    virtual Ray getNormal(Point point, Ray incidentRay)
-    {
+    virtual Ray getNormal(Point point, Ray incidentRay) {
         Point dir(2*A*point.x + D*point.y + E*point.z + G,
                2*B*point.y + D*point.x + F*point.z + H,
                2*C*point.z + E*point.x + F*point.y + I);
@@ -427,34 +399,28 @@ struct General : public Object{
         return Ray(point, dir);
     }
 
-    bool ok(Point point)
-    {
-        if(fabs(length) > 1e-5){
-            if(point.x < reference_point.x) return false;
-            if(point.x > reference_point.x + length) return false;
+    bool check(Point point) {
+        if(fabs(length) > 1e-5) {
+            if(point.x < refPoint.x) return false;
+            if(point.x > refPoint.x + length) return false;
         }
-        
-
-        if(fabs(width) > 1e-5){
-            if(point.y < reference_point.y) return false;
-            if(point.y > reference_point.y + width) return false;
+        if(fabs(width) > 1e-5) {
+            if(point.y < refPoint.y) return false;
+            if(point.y > refPoint.y + width) return false;
         }
-        
-
-        if(fabs(height) > 1e-5){
-            if(point.z < reference_point.z) return false;
-            if(point.z > reference_point.z + height) return false;
+        if(fabs(height) > 1e-5) {
+            if(point.z < refPoint.z) return false;
+            if(point.z > refPoint.z + height) return false;
         }
     
         return true;
     }
 
 
-    virtual double intersectHelper(Ray ray, Color &color, int level){
-
-        double X0 = ray.origin.x;
-        double Y0 = ray.origin.y;
-        double Z0 = ray.origin.z;
+    virtual double intersectHelper(Ray ray, Color &color, int level) {
+        double X0 = ray.ori.x;
+        double Y0 = ray.ori.y;
+        double Z0 = ray.ori.z;
 
         double X1 = ray.dir.x;
         double Y1 = ray.dir.y;
@@ -464,31 +430,26 @@ struct General : public Object{
         double C1 = 2*A*X0*X1 + 2*B*Y0*Y1 + 2*C*Z0*Z1 + D*(X0*Y1 + X1*Y0) + E*(X0*Z1 + X1*Z0) + F*(Y0*Z1 + Y1*Z0) + G*X1 + H*Y1 + I*Z1;
         double C2 = A*X0*X0 + B*Y0*Y0 + C*Z0*Z0 + D*X0*Y0 + E*X0*Z0 + F*Y0*Z0 + G*X0 + H*Y0 + I*Z0 + J;
 
-        double discriminant = C1*C1 - 4*C0*C2;
-        if(discriminant < 0) return -1;
+        double dis = C1*C1 - 4*C0*C2;
+        if(dis < 0) return -1;
         if(fabs(C0) < 1e-5) {
             return -C2/C1;
         }
-        double t1 = (-C1 - sqrt(discriminant))/(2*C0);
-        double t2 = (-C1 + sqrt(discriminant))/(2*C0);
+        double t1 = (-C1 - sqrt(dis))/(2*C0);
+        double t2 = (-C1 + sqrt(dis))/(2*C0);
 
         if(t1 < 0 && t2 < 0) return -1;
-
-        // cout<<"t1 "<<t1<<" t2 "<<t2<<endl;
-
-        if(t2<t1) swap(t1,t2);
+        if(t2 < t1) swap(t1,t2);
 
         if(t1 > 0) {
-            // cout<<"t1 "<<t1<<endl;
-            Point intersectionPoint = ray.origin + ray.dir*t1;
-            if(ok(intersectionPoint)){
+            Point intersectionPoint = ray.ori + ray.dir*t1;
+            if(check(intersectionPoint)) {
                 return t1;
             }
         }
         if(t2 > 0) {
-            // cout<<"t2 "<<t2<<endl;
-            Point intersectionPoint = ray.origin + ray.dir*t2;
-            if(ok(intersectionPoint)){
+            Point intersectionPoint = ray.ori + ray.dir*t2;
+            if(check(intersectionPoint)) {
                 return t2;
             }
         }
@@ -497,59 +458,56 @@ struct General : public Object{
 
     }
     
-    // input stream
-    friend istream& operator>>(istream &in, General &g)
-    {
-        in >> g.A >> g.B >> g.C >> g.D >> g.E >> g.F >> g.G >> g.H >> g.I >> g.J;
-        in >> g.reference_point >> g.length >> g.width >> g.height;
+    friend istream& operator>>(istream &in, Quadratic &q) {
+        in >> q.A >> q.B >> q.C >> q.D >> q.E >> q.F >> q.G >> q.H >> q.I >> q.J;
+        in >> q.refPoint >> q.length >> q.width >> q.height;
 
-        in >> g.color.r >> g.color.g >> g.color.b; // color
-        for(int i = 0; i < 4; i++) in >> g.coefficients[i];
-        in >> g.shine;
+        in >> q.color.r >> q.color.g >> q.color.b;
+        for(int i = 0; i < 4; i++) {
+            in >> q.coefficients[i];
+        }
+        in >> q.shine;
+
         return in;
     }
 
 };
 
-double determinant(double ara[3][3]){
-	double v1 = ara[0][0] * (ara[1][1] * ara[2][2] - ara[1][2] * ara[2][1]);
-	double v2 = ara[0][1] * (ara[1][0] * ara[2][2] - ara[1][2] * ara[2][0]);
-	double v3 = ara[0][2] * (ara[1][0] * ara[2][1] - ara[1][1] * ara[2][0]);
-	return v1 - v2 + v3;
+double determinant(double mat[3][3]) {
+	double x = mat[0][0] * (mat[1][1] * mat[2][2] - mat[1][2] * mat[2][1]);
+	double y = mat[0][1] * (mat[1][0] * mat[2][2] - mat[1][2] * mat[2][0]);
+	double z = mat[0][2] * (mat[1][0] * mat[2][1] - mat[1][1] * mat[2][0]);
+	return x-y+z;
 }
 
 
 struct Triangle: public Object {
     Point a, b, c;
-
     Triangle(){
 
     }
 
-    Triangle(Point a, Point b, Point c)
-    {
+    Triangle(Point a, Point b, Point c) {
         this->a = a;
         this->b = b;
         this->c = c;
     }
 
-    virtual Ray getNormal(Point point, Ray incidentRay)
-    {
+    virtual Ray getNormal(Point point, Ray incidentRay) {
         Point normal = (b-a)^(c-a);
         normal.normalize();
         
-        if(incidentRay.dir*normal < 0){
+        if(incidentRay.dir*normal < 0) {
             return Ray(point, -(normal));
         }
-        else{
+        else {
             return Ray(point, normal);
         }
     }
 
-    virtual void draw(){
+    virtual void draw() {
         glColor3f(color.r, color.g, color.b);
-        glBegin(GL_TRIANGLES);
-        {
+        glBegin(GL_TRIANGLES); {
             glVertex3f(a.x, a.y, a.z);
             glVertex3f(b.x, b.y, b.z);
             glVertex3f(c.x, c.y, c.z);
@@ -557,240 +515,210 @@ struct Triangle: public Object {
         glEnd();
     }
 
-    virtual double intersectHelper(Ray ray, Color &color, int level){
+    virtual double intersectHelper(Ray ray, Color &color, int level) {
 
         double betaMat[3][3] = {
-				{a.x - ray.origin.x, a.x - c.x, ray.dir.x},
-				{a.y - ray.origin.y, a.y - c.y, ray.dir.y},
-				{a.z - ray.origin.z, a.z - c.z, ray.dir.z}
-			};
-			double gammaMat[3][3] = {
-				{a.x - b.x, a.x - ray.origin.x, ray.dir.x},
-				{a.y - b.y, a.y - ray.origin.y, ray.dir.y},
-				{a.z - b.z, a.z - ray.origin.z, ray.dir.z}
-			};
-			double tMat[3][3] = {
-				{a.x - b.x, a.x - c.x, a.x - ray.origin.x},
-				{a.y - b.y, a.y - c.y, a.y - ray.origin.y},
-				{a.z - b.z, a.z - c.z, a.z - ray.origin.z}
-			};
-			double AMat[3][3] {
-				{a.x - b.x, a.x - c.x, ray.dir.x},
-				{a.y - b.y, a.y - c.y, ray.dir.y},
-				{a.z - b.z, a.z - c.z, ray.dir.z}
-			};
+            {a.x - ray.ori.x, a.x - c.x, ray.dir.x},
+            {a.y - ray.ori.y, a.y - c.y, ray.dir.y},
+            {a.z - ray.ori.z, a.z - c.z, ray.dir.z}
+        };
+        double gammaMat[3][3] = {
+            {a.x - b.x, a.x - ray.ori.x, ray.dir.x},
+            {a.y - b.y, a.y - ray.ori.y, ray.dir.y},
+            {a.z - b.z, a.z - ray.ori.z, ray.dir.z}
+        };
+        double tMat[3][3] = {
+            {a.x - b.x, a.x - c.x, a.x - ray.ori.x},
+            {a.y - b.y, a.y - c.y, a.y - ray.ori.y},
+            {a.z - b.z, a.z - c.z, a.z - ray.ori.z}
+        };
+        double AMat[3][3] = {
+            {a.x - b.x, a.x - c.x, ray.dir.x},
+            {a.y - b.y, a.y - c.y, ray.dir.y},
+            {a.z - b.z, a.z - c.z, ray.dir.z}
+        };
 
         double Adet = determinant(AMat);
         double beta = determinant(betaMat) / Adet;
         double gamma = determinant(gammaMat) / Adet;
         double t = determinant(tMat) / Adet;
 
-        if (beta + gamma < 1 && beta > 0 && gamma > 0 && t > 0){
+        if (beta + gamma < 1 && beta > 0 && gamma > 0 && t > 0) {
             return t;
         }
-        else{
-            return -1;
-        }
+
+        return -1;
     }
 
-    // input stream
-    friend istream& operator>>(istream &in, Triangle &t)
-    {
-        in >> t.a >> t.b >> t.c; // 3 vertices
-        in >> t.color.r >> t.color.g >> t.color.b; // color
+    friend istream& operator>>(istream &in, Triangle &t) {
+        in >> t.a >> t.b >> t.c;
+        in >> t.color.r >> t.color.g >> t.color.b;
         for(int i = 0; i < 4; i++) in >> t.coefficients[i];
         in >> t.shine;
+
         return in;
     }
 };
 
 struct Sphere : public Object {
 
-        Sphere(){
+    Sphere() {}
+
+    Sphere(Point center, double radius) {
+        refPoint = center;
+        length = radius;
+    }
+
+    virtual Ray getNormal(Point point, Ray incidentRay) {
+        return Ray(point, point - refPoint);
+    }
+
+    virtual void draw() {
+        int stacks = 30;
+        int slices = 20;
+
+        Point points[100][100];
+        double h, r;
+        for (int i = 0; i <= stacks; i++) {
+            h = length * sin(((double)i / (double)stacks) * (pi / 2));
+            r = length * cos(((double)i / (double)stacks) * (pi / 2));
+            for (int j = 0; j <= slices; j++) {
+                points[i][j].x = r * cos(((double)j / (double)slices) * 2 * pi);
+                points[i][j].y = r * sin(((double)j / (double)slices) * 2 * pi);
+                points[i][j].z = h;
+            }
         }
-
-		Sphere(Point center, double radius){
-			reference_point = center;
-			length = radius;
-		}
-
-        virtual Ray getNormal(Point point, Ray incidentRay){
-            return Ray(point, point - reference_point);
+        
+        for (int i = 0; i < stacks; i++) {
+            glPushMatrix();
+            glTranslatef(refPoint.x, refPoint.y, refPoint.z);
+            glColor3f(color.r, color.g, color.b);
+            for (int j = 0; j < slices; j++) {
+                glBegin(GL_QUADS); {
+                    glVertex3f(points[i][j].x, points[i][j].y, points[i][j].z);
+                    glVertex3f(points[i][j + 1].x, points[i][j + 1].y, points[i][j + 1].z);
+                    glVertex3f(points[i + 1][j + 1].x, points[i + 1][j + 1].y, points[i + 1][j + 1].z);
+                    glVertex3f(points[i + 1][j].x, points[i + 1][j].y, points[i + 1][j].z);
+                    
+                    glVertex3f(points[i][j].x, points[i][j].y, -points[i][j].z);
+                    glVertex3f(points[i][j + 1].x, points[i][j + 1].y, -points[i][j + 1].z);
+                    glVertex3f(points[i + 1][j + 1].x, points[i + 1][j + 1].y, -points[i + 1][j + 1].z);
+                    glVertex3f(points[i + 1][j].x, points[i + 1][j].y, -points[i + 1][j].z);
+                }
+                glEnd();
+            }
+            glPopMatrix();
         }
+    }
 
-		virtual void draw(){
-            int stacks = 30;
-			int slices = 20;
+    virtual double intersectHelper(Ray ray, Color &color, int level) {
+        ray.ori = ray.ori - refPoint;
+        
+        double a = 1;
+        double b = 2 * (ray.dir*ray.ori);
+        double c = (ray.ori*ray.ori) - (length*length);
 
-			Point points[100][100];
-			int i, j;
-			double h, r;
-			// generate points
-			for (i = 0; i <= stacks; i++)
-			{
-				h = length * sin(((double)i / (double)stacks) * (pi / 2));
-				r = length * cos(((double)i / (double)stacks) * (pi / 2));
-				for (j = 0; j <= slices; j++)
-				{
-					points[i][j].x = r * cos(((double)j / (double)slices) * 2 * pi);
-					points[i][j].y = r * sin(((double)j / (double)slices) * 2 * pi);
-					points[i][j].z = h;
-				}
-			}
-			//draw quads using generated points
-			for (i = 0; i < stacks; i++)
-			{
-				glPushMatrix();
-				glTranslatef(reference_point.x, reference_point.y, reference_point.z);
-				glColor3f(color.r, color.g, color.b);
-				for (j = 0; j < slices; j++)
-				{
-					glBegin(GL_QUADS);
-					{
-						//upper hemisphere
-						glVertex3f(points[i][j].x, points[i][j].y, points[i][j].z);
-						glVertex3f(points[i][j + 1].x, points[i][j + 1].y, points[i][j + 1].z);
-						glVertex3f(points[i + 1][j + 1].x, points[i + 1][j + 1].y, points[i + 1][j + 1].z);
-						glVertex3f(points[i + 1][j].x, points[i + 1][j].y, points[i + 1][j].z);
-						//lower hemisphere
-						glVertex3f(points[i][j].x, points[i][j].y, -points[i][j].z);
-						glVertex3f(points[i][j + 1].x, points[i][j + 1].y, -points[i][j + 1].z);
-						glVertex3f(points[i + 1][j + 1].x, points[i + 1][j + 1].y, -points[i + 1][j + 1].z);
-						glVertex3f(points[i + 1][j].x, points[i + 1][j].y, -points[i + 1][j].z);
-					}
-					glEnd();
-				}
-				glPopMatrix();
-			}
-		}
-
-        virtual double intersectHelper(Ray ray, Color &color, int level){
-
-            ray.origin = ray.origin - reference_point; // adjust ray origin
+        double dis = pow(b, 2) - 4 * a * c;
+        double t = -1;
+        if (dis < 0) {
+            t = -1;
+        }
+        else {
             
-            double a = 1;
-            double b = 2 * (ray.dir*ray.origin);
-            double c = (ray.origin*ray.origin) - (length*length);
+            if(fabs(a) < 1e-5) {
+                t = -c/b;
+                return t;
+            }
 
-            
+            double t1 = (-b - sqrt(dis)) / (2 * a);
+            double t2 = (-b + sqrt(dis)) / (2 * a);
 
-            double discriminant = pow(b, 2) - 4 * a * c;
-            double t = -1;
-            if (discriminant < 0){
-                t = -1;
+            if(t2 < t1) swap(t1, t2);
+
+            if (t1 > 0){
+                t = t1;
+            }
+            else if (t2 > 0){
+                t = t2;
             }
             else{
-                
-                if(fabs(a) < 1e-5)
-                {
-                    t = -c/b;
-                    return t;
-                }
-
-                double t1 = (-b - sqrt(discriminant)) / (2 * a);
-                double t2 = (-b + sqrt(discriminant)) / (2 * a);
-
-                if(t2<t1) swap(t1, t2);
-
-                if (t1 > 0){
-                    t = t1;
-                }
-                else if (t2 > 0){
-                    t = t2;
-                }
-                else{
-                    t = -1;
-                }
+                t = -1;
             }
-
-            return t;
-            // if(level == 0) return t;
-            
-            // Point intersectionPoint = ray.origin + ray.dir * t;
-            // Point normal = intersectionPoint - reference_point;
         }
 
-        // input stream
-        friend std::istream& operator>>(std::istream& in, Sphere& s) {
-            in >> s.reference_point >> s.length; // center and radius
-            in >> s.color.r >> s.color.g >> s.color.b; // color
-            for(int i = 0; i < 4; i++) in >> s.coefficients[i];
-            in >> s.shine;
-            return in;
-        }
+        return t;
+    }
+
+    friend std::istream& operator>>(std::istream& in, Sphere& s) {
+        in >> s.refPoint >> s.length;
+        in >> s.color.r >> s.color.g >> s.color.b;
+        for(int i = 0; i < 4; i++) in >> s.coefficients[i];
+        in >> s.shine;
+        return in;
+    }
 };
 
 struct Floor : public Object {
-
     int tiles;
 
-    Floor(){
+    Floor() {
         tiles = 1;
     }
 
     Floor(int floorWidth,int tileWidth){
         tiles = floorWidth / tileWidth;
-        reference_point = Point(-floorWidth / 2, -floorWidth / 2, 0);
+        refPoint = Point(-floorWidth / 2, -floorWidth / 2, 0);
         length = tileWidth;
     }
 
-    virtual Color getColorAt(Point point){
+    virtual Color getColorAt(Point point) {
+        int tileX = (point.x - refPoint.x) / length;
+		int tileY = (point.y - refPoint.y) / length;
 
-        int tileX = (point.x - reference_point.x) / length;
-		int tileY = (point.y - reference_point.y) / length;
-
-        if(tileX<0 || tileX>=tiles || tileY<0 || tileY>=tiles){
+        if(tileX < 0 or tileX >= tiles or tileY < 0 or tileY >= tiles) {
             return Color(0,0,0);
         }
 
-		if (((tileX + tileY) % 2) == 0)
-		{
+		if (((tileX + tileY) % 2) == 0) {
 			return Color(1,1,1);
 		}
-		else
-		{
-            // cout<<"Black"<<endl;
+		else {
 			return Color(0,0,0);
 		}
     }
 
-    virtual Ray getNormal(Point point, Ray incidentRay){
+    virtual Ray getNormal(Point point, Ray incidentRay) {
         if(incidentRay.dir.z > 0) return Ray(point, Point(0, 0, 1));
         else return Ray(point, Point(0, 0, -1));
     }
 
-    virtual void draw(){
-        for (int i = 0; i < tiles; i++)
-		{
-			for (int j = 0; j < tiles; j++)
-			{
+    virtual void draw() {
+        for (int i = 0; i < tiles; i++) {
+			for (int j = 0; j < tiles; j++) {
 				if (((i + j) % 2) == 0) glColor3f(1, 1, 1);
 				else glColor3f(0, 0, 0);
 
-				glBegin(GL_QUADS);
-				{
-					glVertex3f(reference_point.x + i * length, reference_point.y + j * length, 0);
-					glVertex3f(reference_point.x + (i + 1) * length, reference_point.y + j * length, 0);
-					glVertex3f(reference_point.x + (i + 1) * length, reference_point.y + (j + 1) * length, 0);
-					glVertex3f(reference_point.x + i * length, reference_point.y + (j + 1) * length, 0);
+				glBegin(GL_QUADS); {
+					glVertex3f(refPoint.x + i * length, refPoint.y + j * length, 0);
+					glVertex3f(refPoint.x + (i + 1) * length, refPoint.y + j * length, 0);
+					glVertex3f(refPoint.x + (i + 1) * length, refPoint.y + (j + 1) * length, 0);
+					glVertex3f(refPoint.x + i * length, refPoint.y + (j + 1) * length, 0);
 				}
 				glEnd();
 			}
 		}
     }
 
-    virtual double intersectHelper(Ray ray, Color &color, int level){
+    virtual double intersectHelper(Ray ray, Color &color, int level) {
         Point normal = Point(0, 0, 1);
         double dotP = normal * ray.dir;
         
-        if (round(dotP * 100) == 0)
-			return -1;
+        if (round(dotP * 100) == 0) return -1;
 
-        double t = -(normal * ray.origin) / dotP;
+        double t = -(normal * ray.ori) / dotP;
+        Point p = ray.ori + ray.dir * t;
 
-        Point p = ray.origin + ray.dir * t;
-
-        if(p.x <= reference_point.x || p.x >= abs(reference_point.x) && p.y <= reference_point.y && p.y >= abs(reference_point.y)){
+        if(p.x <= refPoint.x or p.x >= abs(refPoint.x) and p.y <= refPoint.y and p.y >= abs(refPoint.y)) {
             return -1;
         }
         
