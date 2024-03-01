@@ -561,7 +561,6 @@ struct Triangle: public Object {
 };
 
 struct Sphere : public Object {
-
     Sphere() {}
 
     Sphere(Point center, double radius) {

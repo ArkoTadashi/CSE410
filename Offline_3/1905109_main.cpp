@@ -29,243 +29,20 @@
 using namespace std;
 
 
-double cameraHeight;
-double cameraAngle;
 bool grid;
 bool axes;
 double angle;
+double cameraHeight;
+double cameraAngle;
+
 
 int recLevel;
-int imageHeight,imageWidth;
-bitmap_image image;
+int imageHeight, imageWidth;
+bitmap_image img;
 
 vector <Object*> objects;
 vector <PointLight*> pointLights;
 vector <SpotLight*> spotLights;
-
-int imageCount = 1;
-Point pos(200,0,10);
-
-Point up(0,0,1);
-Point rightV(-1 / sqrt(2), 1 / sqrt(2), 0);
-Point look(-1 / sqrt(2), -1 / sqrt(2), 0);
-
-double ROT_ANG = pi/180;
-int numSegments;
-
-void drawAxes() {
-	if(axes == 1) {
-		glColor3f(1.0, 1.0, 1.0);
-		glBegin(GL_LINES); {
-			glVertex3f(100, 0, 0);
-			glVertex3f(-100, 0, 0);
-
-			glVertex3f(0, -100, 0);
-			glVertex3f(0, 100, 0);
-
-			glVertex3f(0, 0, 100);
-			glVertex3f(0, 0, -100);
-		}
-		glEnd();
-	}
-}
-
-void drawGrid() {
-	if(grid == 1) {
-		glColor3f(0.6, 0.6, 0.6);
-		glBegin(GL_LINES); {
-			for(int i = -8; i <= 8; i++) {
-
-				if(i == 0) continue;
-
-				glVertex3f(i*10, -90, 0);
-				glVertex3f(i*10, 90, 0);
-				glVertex3f(-90, i*10, 0);
-				glVertex3f(90, i*10, 0);
-			}
-		}
-		glEnd();
-	}
-}
-
-void rotate3D(Point &vec, Point &axis,double ang) {
-	vec = vec*cos(ang)+(axis^vec)*sin(ang);
-}
-
-double windowWidth = 500, windowHeight = 500;
-double viewAngle = 80;
-
-void capture() {
-	cout << "Capturing Image" << endl;
-	for(int i = 0; i < imageWidth; i++) {
-		for(int j = 0; j < imageHeight; j++) {
-			image.set_pixel(i, j, 0, 0, 0);
-        }
-    }
-
-	double planeDistance = (windowHeight / 2.0) / tan((pi * viewAngle) / (360.0));
-
-	Point topLeft = pos + (look * planeDistance) + (up * (windowHeight / 2.0)) - (rightV * (windowWidth / 2.0));
-
-	double du = windowWidth / (imageWidth*1.0);
-	double dv = windowHeight / (imageHeight*1.0);
-	topLeft = topLeft + (rightV * du / 2.0) - (up * dv / 2.0);
-
-	int nearIndex = -1;
-	double t, tMin;
-
-	for(int i = 0; i < imageWidth; i++) {
-		for(int j = 0; j < imageHeight; j++) {
-			Point pixel = topLeft + (rightV * du * i) - (up * dv * j);
-
-			Ray ray(pos,pixel-pos);
-			Color color;
-			tMin = -1;
-			nearIndex = -1;
-			for(int k = 0; k < (int)objects.size(); k++) {
-				t = objects[k]->intersect(ray,color, 0);
-				if(t>0 && (nearIndex == -1 || t<tMin) )
-					tMin = t , nearIndex = k;
-			}
-
-			if(nearIndex != -1) {
-				color = Color(0,0,0);
-				double t = objects[nearIndex]->intersect(ray, color, 1);
-
-				if(color.r > 1) color.r = 1;
-				if(color.g > 1) color.g = 1;
-				if(color.b > 1) color.b = 1;
-
-				if(color.r < 0) color.r = 0;
-				if(color.g < 0) color.g = 0;
-				if(color.b < 0) color.b = 0;
-				
-				image.set_pixel(i, j, 255*color.r, 255*color.g, 255*color.b);
-			}
-		}
-	}
-
-	image.save_image("Output_"+to_string(imageCount)+".bmp");
-	imageCount++;
-	cout << "Image Saved" << endl;		
-}
-
-void keyboardListener(unsigned char key, int x, int y) {
-	switch(key) {
-		case '0':
-			capture();
-			break;
-		case '1':
-			rotate3D(rightV,up,ROT_ANG);
-			rotate3D(look,up,ROT_ANG);
-			break;
-		case '2':
-			rotate3D(rightV,up,-ROT_ANG);
-			rotate3D(look,up,-ROT_ANG);
-			break;
-		case '3':
-			rotate3D(up,rightV,ROT_ANG);
-			rotate3D(look,rightV,ROT_ANG);
-			break;
-		case '4':
-			rotate3D(up,rightV,-ROT_ANG);
-			rotate3D(look,rightV,-ROT_ANG);
-			break;
-		case '5':
-			rotate3D(rightV,look,ROT_ANG);
-			rotate3D(up,look,ROT_ANG);
-			break;
-		case '6':
-			rotate3D(rightV,look,-ROT_ANG);
-			rotate3D(up,look,-ROT_ANG);
-			break;
-		default:
-			break;
-	}
-}
-
-
-void specialKeyListener(int key, int x, int y) {
-	switch(key) {
-		case GLUT_KEY_DOWN:
-			pos = pos - look * 3;
-			break;
-		case GLUT_KEY_UP:
-			pos = pos + look * 3;
-			break;
-		case GLUT_KEY_RIGHT:
-			pos = pos + rightV * 3;
-			break;
-		case GLUT_KEY_LEFT:
-			pos = pos - rightV * 3;
-			break;
-		case GLUT_KEY_PAGE_UP:
-			pos = pos + up * 3;
-			break;
-		case GLUT_KEY_PAGE_DOWN:
-			pos = pos - up * 3;
-			break;
-		default:
-			break;
-	}
-}
-
-
-void mouseListener(int button, int state, int x, int y) {
-	switch(button) {
-		case GLUT_LEFT_BUTTON:
-			if(state == GLUT_DOWN) {
-				axes = !axes;
-			}
-			break;
-		default:
-			break;
-	}
-}
-
-
-
-void display() {
-
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glClearColor(0, 0, 0, 0);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
-
-	gluLookAt(pos.x, pos.y, pos.z, 
-			pos.x + look.x, pos.y + look.y, pos.z + look.z, 
-			up.x, up.y, up.z);
-
-
-	glMatrixMode(GL_MODELVIEW);
-
-
-	drawAxes();
-	drawGrid();
-
-    for (int i = 0; i < objects.size(); i++) {
-		Object *object = objects[i];
-		object->draw();
-	}
-
-	for (int i = 0; i < pointLights.size(); i++) {
-		pointLights[i]->draw();
-	}
-
-	for(int i = 0; i < spotLights.size(); i++) {
-		SpotLight* l = spotLights[i];
-		spotLights[i]->draw();
-	}
-
-	glutSwapBuffers();
-}
-
-
-void animate() {
-	glutPostRedisplay();
-}
 
 void loadData() {
 	ifstream in("scene.txt");
@@ -328,16 +105,239 @@ void loadData() {
 	objects.push_back(floor);
 }
 
-void init() {
+int imageCount = 1;
+Point cam(150, 0, 10);
+
+Point up(0, 0, 1);
+Point rig(-1 / sqrt(2), 1 / sqrt(2), 0);
+Point look(-1 / sqrt(2), -1 / sqrt(2), 0);
+
+int seg;
+double rotAngle = pi/180;
+
+double getDegree(double angle) {
+	return angle*pi/180;
+}
+
+void drawAxes() {
+	if(axes == 1) {
+		glBegin(GL_LINES); {
+			glColor3f(1, 0, 0);
+			glVertex3f(0, 0, 0);
+			glVertex3f(100, 0, 0);
+
+			glColor3f(0, 1, 0);
+			glVertex3f(0, 0, 0);
+			glVertex3f(0, 100, 0);
+
+			glColor3f(0, 0, 1);
+			glVertex3f(0, 0, 0);
+			glVertex3f(0, 0, 100);
+		}
+		glEnd();
+	}
+}
+
+void drawGrid() {
+	if(grid == 1) {
+		glColor3f(0.6, 0.6, 0.6);
+		glBegin(GL_LINES); {
+			for(int i = -8; i <= 8; i++) {
+
+				if(i == 0) continue;
+
+				glVertex3f(i*10, -90, 0);
+				glVertex3f(i*10, 90, 0);
+				glVertex3f(-90, i*10, 0);
+				glVertex3f(90, i*10, 0);
+			}
+		}
+		glEnd();
+	}
+}
+
+void rodriguez(Point &p, Point &axis, double ang) {
+	p = p*cos(ang)+(axis^p)*sin(ang);
+}
+
+double windowWidth = 720, windowHeight = 600;
+double viewAngle = 80;
+
+void capture() {
+	cout << "Capturing Image" << endl;
+	for(int i = 0; i < imageWidth; i++) {
+		for(int j = 0; j < imageHeight; j++) {
+			img.set_pixel(i, j, 0, 0, 0);
+        }
+    }
+
+	double planeDistance = (windowHeight / 2.0) / tan(getDegree(viewAngle/2.0));
+
+	Point topLeft = cam + (look * planeDistance) + (up * (windowHeight / 2.0)) - (rig * (windowWidth / 2.0));
+
+	double du = windowWidth / (imageWidth*1.0);
+	double dv = windowHeight / (imageHeight*1.0);
+	topLeft = topLeft + (rig * du / 2.0) - (up * dv / 2.0);
+
+	int nearIndex = -1;
+	double t, tMin;
+
+	for(int i = 0; i < imageWidth; i++) {
+		for(int j = 0; j < imageHeight; j++) {
+			Point pixel = topLeft + (rig * du * i) - (up * dv * j);
+
+			Ray ray(cam, pixel-cam);
+			Color color;
+			tMin = -1;
+			nearIndex = -1;
+			for(int k = 0; k < (int)objects.size(); k++) {
+				t = objects[k]->intersect(ray,color, 0);
+				if(t>0 && (nearIndex == -1 || t<tMin) )
+					tMin = t , nearIndex = k;
+			}
+
+			if(nearIndex != -1) {
+				color = Color(0,0,0);
+				double t = objects[nearIndex]->intersect(ray, color, 1);
+
+				if(color.r > 1) color.r = 1;
+				if(color.g > 1) color.g = 1;
+				if(color.b > 1) color.b = 1;
+
+				if(color.r < 0) color.r = 0;
+				if(color.g < 0) color.g = 0;
+				if(color.b < 0) color.b = 0;
+				
+				img.set_pixel(i, j, 255*color.r, 255*color.g, 255*color.b);
+			}
+		}
+	}
+
+	img.save_image("Output_"+to_string(imageCount)+".bmp");
+	imageCount++;
+	cout << "Image Saved" << endl;		
+}
+
+void keyboardListener(unsigned char key, int x, int y) {
+	switch(key) {
+		case '0':
+			capture();
+			break;
+		case '1':
+			rodriguez(rig, up, rotAngle);
+			rodriguez(look, up, rotAngle);
+			break;
+		case '2':
+			rodriguez(rig, up, -rotAngle);
+			rodriguez(look, up, -rotAngle);
+			break;
+		case '3':
+			rodriguez(up, rig, rotAngle);
+			rodriguez(look, rig, rotAngle);
+			break;
+		case '4':
+			rodriguez(up, rig, -rotAngle);
+			rodriguez(look, rig, -rotAngle);
+			break;
+		case '5':
+			rodriguez(rig, look, rotAngle);
+			rodriguez(up, look, rotAngle);
+			break;
+		case '6':
+			rodriguez(rig, look, -rotAngle);
+			rodriguez(up, look, -rotAngle);
+			break;
+		default:
+			break;
+	}
+}
+
+
+void specialKeyListener(int key, int x, int y) {
+	switch(key) {
+		case GLUT_KEY_DOWN:
+			cam = cam - look * 2;
+			break;
+		case GLUT_KEY_UP:
+			cam = cam + look * 2;
+			break;
+		case GLUT_KEY_RIGHT:
+			cam = cam + rig * 2;
+			break;
+		case GLUT_KEY_LEFT:
+			cam = cam - rig * 2;
+			break;
+		case GLUT_KEY_PAGE_UP:
+			cam = cam + up * 2;
+			break;
+		case GLUT_KEY_PAGE_DOWN:
+			cam = cam - up * 2;
+			break;
+		default:
+			break;
+	}
+}
+
+
+void mouseListener(int button, int state, int x, int y) {
+	switch(button) {
+		case GLUT_LEFT_BUTTON:
+			if(state == GLUT_DOWN) {
+				axes = !axes;
+			}
+			break;
+		default:
+			break;
+	}
+}
+
+
+
+void display() {
+
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glClearColor(0, 0, 0, 0);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+
+	gluLookAt(cam.x, cam.y, cam.z, 
+			cam.x + look.x, cam.y + look.y, cam.z + look.z, 
+			up.x, up.y, up.z);
+
+
+	glMatrixMode(GL_MODELVIEW);
+
+
+	drawAxes();
+	drawGrid();
+
+    for (int i = 0; i < objects.size(); i++) objects[i]->draw();
+	for (int i = 0; i < pointLights.size(); i++) pointLights[i]->draw();
+	for(int i = 0; i < spotLights.size(); i++) spotLights[i]->draw();
+	
+
+	glutSwapBuffers();
+}
+
+
+void animate() {
+	glutPostRedisplay();
+}
+
+
+
+void initGL() {
 	grid = true;
 	axes = true;
 	cameraHeight = 150.0;
 	cameraAngle = 1.0;
 	angle = 0;
-	numSegments = 36;
+	seg = 36;
 
 	loadData();
-	image = bitmap_image(imageWidth, imageHeight);
+	img = bitmap_image(imageWidth, imageHeight);
 
 	glClearColor(0, 0, 0, 0);
 	glMatrixMode(GL_PROJECTION);
@@ -346,15 +346,11 @@ void init() {
 }
 
 int main(int argc, char **argv) {
-	glutInit(&argc,argv);
+	glutInit(&argc, argv);
 	glutInitWindowSize(720, 600);
-	glutInitWindowPosition(0, 0);
+	glutInitWindowPosition(100, 100);
 	glutInitDisplayMode(GLUT_DEPTH | GLUT_DOUBLE | GLUT_RGB);
-
 	glutCreateWindow("1905109");
-
-	init();
-
 	glEnable(GL_DEPTH_TEST);
 
 	glutDisplayFunc(display);
@@ -364,14 +360,13 @@ int main(int argc, char **argv) {
 	glutSpecialFunc(specialKeyListener);
 	glutMouseFunc(mouseListener);
 
+	initGL();
 	glutMainLoop();
 
 	objects.clear();
 	objects.shrink_to_fit();
-
 	pointLights.clear();
 	pointLights.shrink_to_fit();
-
 	spotLights.clear();
 	spotLights.shrink_to_fit();
 
