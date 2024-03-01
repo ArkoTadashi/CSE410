@@ -156,6 +156,32 @@ void drawGrid() {
 	}
 }
 
+void display() {
+	glClearColor(0, 0, 0, 0);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+
+	gluLookAt(cam.x, cam.y, cam.z, 
+			cam.x + look.x, cam.y + look.y, cam.z + look.z, 
+			up.x, up.y, up.z);
+
+
+	glMatrixMode(GL_MODELVIEW);
+
+
+	drawAxes();
+	drawGrid();
+
+    for (int i = 0; i < objects.size(); i++) objects[i]->draw();
+	for (int i = 0; i < pointLights.size(); i++) pointLights[i]->draw();
+	for(int i = 0; i < spotLights.size(); i++) spotLights[i]->draw();
+	
+
+	glutSwapBuffers();
+}
+
 void rodriguez(Point &p, Point &axis, double ang) {
 	p = p*cos(ang)+(axis^p)*sin(ang);
 }
@@ -192,7 +218,7 @@ void capture() {
 			nearIndex = -1;
 			for(int k = 0; k < (int)objects.size(); k++) {
 				t = objects[k]->intersect(ray,color, 0);
-				if(t>0 && (nearIndex == -1 || t<tMin) )
+				if(t > 0 and (nearIndex == -1 or t < tMin) )
 					tMin = t , nearIndex = k;
 			}
 
@@ -213,7 +239,7 @@ void capture() {
 		}
 	}
 
-	img.save_image("Output_"+to_string(imageCount)+".bmp");
+	img.save_image("img_"+to_string(imageCount)+".bmp");
 	imageCount++;
 	cout << "Image Saved" << endl;		
 }
@@ -289,36 +315,6 @@ void mouseListener(int button, int state, int x, int y) {
 		default:
 			break;
 	}
-}
-
-
-
-void display() {
-
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glClearColor(0, 0, 0, 0);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
-
-	gluLookAt(cam.x, cam.y, cam.z, 
-			cam.x + look.x, cam.y + look.y, cam.z + look.z, 
-			up.x, up.y, up.z);
-
-
-	glMatrixMode(GL_MODELVIEW);
-
-
-	drawAxes();
-	drawGrid();
-
-    for (int i = 0; i < objects.size(); i++) objects[i]->draw();
-	for (int i = 0; i < pointLights.size(); i++) pointLights[i]->draw();
-	for(int i = 0; i < spotLights.size(); i++) spotLights[i]->draw();
-	
-
-	glutSwapBuffers();
 }
 
 

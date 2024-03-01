@@ -29,6 +29,24 @@
 using namespace std;
 extern bitmap_image image;
 
+class Object;
+class PointLight;
+class SpotLight;
+
+
+extern vector <PointLight*> pointLights;
+extern vector <SpotLight*> spotLights;
+extern vector <Object*> objects;
+extern int recLevel;
+
+
+double determinant(double mat[3][3]) {
+	double x = mat[0][0] * (mat[1][1] * mat[2][2] - mat[1][2] * mat[2][1]);
+	double y = mat[0][1] * (mat[1][0] * mat[2][2] - mat[1][2] * mat[2][0]);
+	double z = mat[0][2] * (mat[1][0] * mat[2][1] - mat[1][1] * mat[2][0]);
+	return x-y+z;
+}
+
 
 struct Point {
     double x, y, z, n;
@@ -209,19 +227,14 @@ struct Ray {
     }
 };
 
-class Object;
 
-extern vector <PointLight*> pointLights;
-extern vector <SpotLight*> spotLights;
-extern vector <Object*> objects;
-extern int recLevel;
 
 class Object {
 public:
     Point refPoint;
     double height = 0, width = 0, length = 0;
     Color color;
-    vector <double> coefficients; // ambient, diffuse, specular, reflection coefficients
+    vector<double> coefficients;
     int shine;
     
     Object() {
@@ -262,13 +275,12 @@ public:
 
 
         for(int i = 0; i < pointLights.size(); i++) {
-
             Point lightPosition = pointLights[i]->pos;
             Point lightDirection = intersectionPoint - lightPosition;
             lightDirection.normalize();
             
             Ray lightRay = Ray(lightPosition, lightDirection);
-            Ray normal = getNormal(intersectionPoint, lightRay);
+            Ray norm = getNormal(intersectionPoint, lightRay);
 
             double t2 = (intersectionPoint - lightPosition).length();
             if(t2 < 1e-5) continue;
@@ -284,9 +296,9 @@ public:
             }
 
             if(!obscured) {
-                double val = max(0.0, -lightRay.dir*normal.dir);
+                double val = max(0.0, -lightRay.dir*norm.dir);
                 
-                Ray reflection = Ray(intersectionPoint, lightRay.dir - normal.dir*2*(lightRay.dir*normal.dir));
+                Ray reflection = Ray(intersectionPoint, lightRay.dir - norm.dir*2*(lightRay.dir*norm.dir));
                 double phong = max(0.0,-ray.dir*reflection.dir);
                 
                 color.r += pointLights[i]->color.r * coefficients[1] * val * colorAtIntersection.r;
@@ -313,8 +325,8 @@ public:
             if(fabs(angle)<spotLights[i]->cutoffAngle) {
 
                 Ray lightRay = Ray(lightPosition, lightDirection);
-                Ray normal = getNormal(intersectionPoint,lightRay);
-                Ray reflection = Ray(intersectionPoint, lightRay.dir - normal.dir*2*(lightRay.dir*normal.dir));
+                Ray norm = getNormal(intersectionPoint,lightRay);
+                Ray reflection = Ray(intersectionPoint, lightRay.dir - norm.dir*2*(lightRay.dir*norm.dir));
                 
                 double t2 = (intersectionPoint - lightPosition).length();
                 if(t2 < 1e-5) continue;
@@ -331,7 +343,7 @@ public:
                 
                 if(!obscured) {
                     double phong = max(0.0,-(ray.dir*reflection.dir));
-                    double val = max(0.0, -(lightRay.dir*normal.dir));
+                    double val = max(0.0, -(lightRay.dir*norm.dir));
                     
                     color.r += spotLights[i]->pointLight.color.r * coefficients[1] * val * colorAtIntersection.r;
                     color.r += spotLights[i]->pointLight.color.r * coefficients[2] * pow(phong,shine) * colorAtIntersection.r;
@@ -347,8 +359,8 @@ public:
         }
 
         if(level < recLevel) {
-            Ray normal = getNormal(intersectionPoint,ray);
-            Ray reflectionRay = Ray(intersectionPoint, ray.dir - normal.dir*2*(ray.dir*normal.dir));
+            Ray norm = getNormal(intersectionPoint,ray);
+            Ray reflectionRay = Ray(intersectionPoint, ray.dir - norm.dir*2*(ray.dir*norm.dir));
             reflectionRay.ori = reflectionRay.ori + reflectionRay.dir*1e-5;
             
             int nearIndex = -1;
@@ -383,9 +395,7 @@ public:
 struct Quadratic : public Object{
     double A,B,C,D,E,F,G,H,I,J;
 
-    Quadratic() {
-
-    }
+    Quadratic() {}
 
     virtual void draw() {
         return;
@@ -473,12 +483,7 @@ struct Quadratic : public Object{
 
 };
 
-double determinant(double mat[3][3]) {
-	double x = mat[0][0] * (mat[1][1] * mat[2][2] - mat[1][2] * mat[2][1]);
-	double y = mat[0][1] * (mat[1][0] * mat[2][2] - mat[1][2] * mat[2][0]);
-	double z = mat[0][2] * (mat[1][0] * mat[2][1] - mat[1][1] * mat[2][0]);
-	return x-y+z;
-}
+
 
 
 struct Triangle: public Object {
@@ -494,14 +499,14 @@ struct Triangle: public Object {
     }
 
     virtual Ray getNormal(Point point, Ray incidentRay) {
-        Point normal = (b-a)^(c-a);
-        normal.normalize();
+        Point norm = (b-a)^(c-a);
+        norm.normalize();
         
-        if(incidentRay.dir*normal < 0) {
-            return Ray(point, -(normal));
+        if(incidentRay.dir*norm < 0) {
+            return Ray(point, -(norm));
         }
         else {
-            return Ray(point, normal);
+            return Ray(point, norm);
         }
     }
 
@@ -516,7 +521,6 @@ struct Triangle: public Object {
     }
 
     virtual double intersectHelper(Ray ray, Color &color, int level) {
-
         double betaMat[3][3] = {
             {a.x - ray.ori.x, a.x - c.x, ray.dir.x},
             {a.y - ray.ori.y, a.y - c.y, ray.dir.y},
@@ -550,7 +554,7 @@ struct Triangle: public Object {
         return -1;
     }
 
-    friend istream& operator>>(istream &in, Triangle &t) {
+    friend istream& operator >>(istream &in, Triangle &t) {
         in >> t.a >> t.b >> t.c;
         in >> t.color.r >> t.color.g >> t.color.b;
         for(int i = 0; i < 4; i++) in >> t.coefficients[i];
@@ -671,14 +675,14 @@ struct Floor : public Object {
     }
 
     virtual Color getColorAt(Point point) {
-        int tileX = (point.x - refPoint.x) / length;
-		int tileY = (point.y - refPoint.y) / length;
+        int tX = (point.x - refPoint.x) / length;
+		int tY = (point.y - refPoint.y) / length;
 
-        if(tileX < 0 or tileX >= tiles or tileY < 0 or tileY >= tiles) {
+        if(tX < 0 or tX >= tiles or tY < 0 or tY >= tiles) {
             return Color(0,0,0);
         }
 
-		if (((tileX + tileY) % 2) == 0) {
+		if (((tX + tY) % 2) == 0) {
 			return Color(1,1,1);
 		}
 		else {
@@ -709,12 +713,12 @@ struct Floor : public Object {
     }
 
     virtual double intersectHelper(Ray ray, Color &color, int level) {
-        Point normal = Point(0, 0, 1);
-        double dotP = normal * ray.dir;
+        Point norm = Point(0, 0, 1);
+        double dotP = norm * ray.dir;
         
         if (round(dotP * 100) == 0) return -1;
 
-        double t = -(normal * ray.ori) / dotP;
+        double t = -(norm * ray.ori) / dotP;
         Point p = ray.ori + ray.dir * t;
 
         if(p.x <= refPoint.x or p.x >= abs(refPoint.x) and p.y <= refPoint.y and p.y >= abs(refPoint.y)) {
